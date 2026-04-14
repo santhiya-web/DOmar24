@@ -85,7 +85,9 @@ To enable the CD pipeline, you must set the following **Actions Secrets** in you
 - `GCP_SERVICE_ACCOUNT`: The email of the service account used for deployment.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full name of your Workload Identity Provider.
 
-Refer to [SECRETS.md](./SECRETS.md) for more details on setup and Google Secret Manager integration.
+**Note**: You must also manually create the Artifact Registry repository named `containers` in the `us-central1` region before the first deployment.
+
+Refer to [SECRETS.md](./SECRETS.md) for the exact `gcloud` commands and full setup details.
 
 ---
 

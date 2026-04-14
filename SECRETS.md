@@ -4,10 +4,13 @@ This guide provides the exact steps to generate the three secrets required for t
 
 ---
 
-## Prerequisites
-1.  **Google Cloud Project**: You must have an active GCP project.
-2.  **gcloud SDK**: Installed and authenticated (`gcloud auth login`).
-3.  **Project ID**: Replace `YOUR_PROJECT_ID` in the commands below with your actual Project ID.
+## 💡 Terminology & Significance
+
+Understanding these three variables is key to mastering secure cloud deployments:
+
+*   **`GCP_PROJECT_ID` (The Destination)**: This is the unique identifier for your Google Cloud Project. It acts as a logical container for all your resources (Cloud Run, Artifact Registry, etc.). Setting this ensures your CI/CD pipeline knows exactly which "environment" it is deploying to.
+*   **`GCP_SERVICE_ACCOUNT` (The Worker)**: Think of this as a "Robot Identity." It is a non-human account that is granted specific permissions (Roles) to perform tasks like building images and updating services. Instead of using your personal credentials, the pipeline "acts as" this service account to maintain security.
+*   - **`GCP_WORKLOAD_IDENTITY_PROVIDER` (The Secure Bridge)**: This is the most critical piece for modern security. It establishes a trust relationship between GitHub and Google Cloud. Instead of storing a raw "master key" (JSON key) in GitHub, this provider allows GitHub to prove its identity using a temporary token. It ensures that only your specific repository can "borrow" the permissions of the Service Account to run deployments.
 
 ---
 
@@ -40,7 +43,19 @@ done
 
 ---
 
-## Step 3: Setup Workload Identity Federation
+## Step 3: Create Artifact Registry Repository
+Docker images must be pushed to a repository in Artifact Registry. You must create this once manually.
+```bash
+gcloud artifacts repositories create "containers" \
+    --project="${GCP_PROJECT_ID}" \
+    --repository-format="docker" \
+    --location="us-central1" \
+    --description="Docker repository for frontend and backend images"
+```
+
+---
+
+## Step 4: Setup Workload Identity Federation
 This allows GitHub to securely connect to GCP without using sensitive JSON keys.
 
 ### 1. Create the Pool
