@@ -1,46 +1,86 @@
-name: CI
+# 'name' is the title of your workflow as it appears in the GitHub Actions tab.
+name: CI (Continuous Integration)
 
+# 'on' defines the events that trigger the workflow.
 on:
+  # Triggers on code push to the 'main' branch.
   push:
     branches: [ "main" ]
+  # Triggers when a Pull Request is opened or updated targeting 'main'.
   pull_request:
     branches: [ "main" ]
 
+# 'jobs' are the top-level units of work. By default, jobs run in PARALLEL.
+# If you wanted them to run sequentially, you would use the 'needs' keyword.
 jobs:
+
+  # First Job: Handles the frontend tests.
   test-frontend:
+    # 'runs-on' specifies the virtual machine environment (Runner).
+    # Options include: ubuntu-latest, windows-latest, macos-latest, or self-hosted runners.
     runs-on: ubuntu-latest
+
+    # 'defaults' allow you to set common configurations for all 'run' steps in this job.
     defaults:
       run:
+        # Since our project is a monorepo, we tell GitHub to execute commands inside 'frontend/'.
         working-directory: ./frontend
+
+    # 'steps' are the sequential tasks executed in this specific job.
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js
+    # 'uses' pulls a pre-made action from the GitHub Marketplace.
+    # 'actions/checkout' clones your repository onto the runner.
+    - name: "Step 1: Checkout Code"
+      uses: actions/checkout@v4
+
+    - name: "Step 2: Setup Node.js Environment"
       uses: actions/setup-node@v4
       with:
-        node-version: '18.x'
+        # You can specify exact versions (18.20.0) or ranges (18.x).
+        node-version: '20.x'
+        # Enabling caching speeds up future runs by reusing downloaded npm packages.
         cache: 'npm'
+        # Explicitly point to the lockfile so the cache knows when dependencies change.
         cache-dependency-path: frontend/package-lock.json
-    - run: npm ci
-    - run: npm run lint
-    - run: npm test
 
+    # 'run' executes shell commands on the runner.
+    - name: "Step 3: Install Dependencies"
+      # 'npm ci' is preferred in CI over 'npm install' as it's faster and strictly follows the lockfile.
+      run: npm ci
+
+    - name: "Step 4: Run Linter"
+      # Ensures code follows style guidelines before testing.
+      run: npm run lint
+
+    - name: "Step 5: Run Automated Tests"
+      # Executes the test suite (Jest) defined in package.json.
+      run: npm test
+
+  # Second Job: Handles the backend tests.
+  # This runs in parallel with 'test-frontend' on a separate Ubuntu machine.
   test-backend:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
+    - name: "Step 1: Checkout Code"
+      uses: actions/checkout@v4
+
+    - name: "Step 2: Setup Python Environment"
       uses: actions/setup-python@v5
       with:
+        # Python versions can be changed here (e.g., '3.12').
         python-version: '3.11'
         cache: 'pip'
         cache-dependency-path: backend/requirements.txt
-    - name: Install dependencies
+
+    - name: "Step 3: Install Python Dependencies"
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Test with pytest
-      run: |
-        pytest
+
+    - name: "Step 4: Run Pytest"
+      # Executes the backend test suite.
+      run: pytest
