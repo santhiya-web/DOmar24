@@ -1,80 +1,69 @@
 # CD (Continuous Deployment) Workflow
-# This workflow only runs after CI (tests) passes and code is merged to main.
-name: CD - Deploy to Cloud Run
+# This workflow deploys your frontend and backend to Cloud Run using a JSON key.
+name: CD - Deploy to Cloud Run (JSON Auth)
 
 on:
   push:
     branches: [ "main" ]
 
-# 'env' at the top level makes these variables available to ALL jobs and steps.
-# Using variables prevents "magic strings" and makes the file easier to maintain.
+# 'env' makes these variables available to all steps.
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1        # You could change this to us-east1, europe-west1, etc.
-  FRONTEND_SERVICE: frontend-app
-  BACKEND_SERVICE: backend-api
+  REGION: ${{ secrets.REGION }}            # Example: us-central1
+  FRONTEND_SERVICE: frontend-app           # Your Cloud Run frontend service name
+  BACKEND_SERVICE: backend-api             # Your Cloud Run backend service name
 
 jobs:
-  # The 'deploy' job handles the full build-push-deploy sequence.
   deploy:
     runs-on: ubuntu-latest
-    
-    # 'permissions' are required for OIDC (Workload Identity Federation) to work.
-    # Without these, the 'google-github-actions/auth' step will fail.
-    permissions:
-      contents: 'read'      # Allows the action to read the repo files.
-      id-token: 'write'     # Allows the action to request a secure token from GitHub.
 
     steps:
     - name: "Step 1: Checkout Repository"
       uses: actions/checkout@v4
 
-    # This is the "Keyless" authentication step.
-    # It proves to Google that this runner is authorized to act as your Service Account.
-    - id: 'auth'
-      name: 'Step 2: Authenticate to Google Cloud'
-      uses: 'google-github-actions/auth@v2'
+    # JSON KEY AUTHENTICATION (instead of Workload Identity Federation)
+    # This uses the service account key stored in GitHub Secrets.
+    - name: "Step 2: Authenticate to Google Cloud (JSON Key)"
+      uses: google-github-actions/auth@v2
       with:
-        # These values come from your GitHub Repository Secrets.
-        workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-        service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: 'Step 3: Set up Cloud SDK (gcloud)'
-      uses: 'google-github-actions/setup-gcloud@v2'
+    - name: "Step 3: Set up Cloud SDK (gcloud)"
+      uses: google-github-actions/setup-gcloud@v2
 
-    - name: 'Step 4: Configure Docker for Artifact Registry'
-      # Configures local Docker to use 'gcloud' as a credential helper for pushing to GCP.
+    - name: "Step 4: Configure Docker for Artifact Registry"
+      # Allows Docker to push images to Artifact Registry.
       run: gcloud auth configure-docker ${REGION}-docker.pkg.dev
 
-    # Next steps handle Building and Pushing images. 
-    # In a more complex setup, these could be separate parallel jobs.
-    - name: 'Step 5: Build and Push Backend Image'
+    # Build and push backend image
+    - name: "Step 5: Build and Push Backend Image"
       run: |
-        # '${{ github.sha }}' is a built-in variable that gives the unique ID of the current commit.
-        # This ensures every deployment has a unique image tag (Tag Immutability).
-        docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/backend:${{ github.sha }} ./backend
-        docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/backend:${{ github.sha }}
+        IMAGE_BACKEND=${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/backend:${{ github.sha }}
+        docker build -t $IMAGE_BACKEND ./backend
+        docker push $IMAGE_BACKEND
 
-    - name: 'Step 6: Build and Push Frontend Image'
+    # Build and push frontend image
+    - name: "Step 6: Build and Push Frontend Image"
       run: |
-        docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/frontend:${{ github.sha }} ./frontend
-        docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/frontend:${{ github.sha }}
+        IMAGE_FRONTEND=${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/frontend:${{ github.sha }}
+        docker build -t $IMAGE_FRONTEND ./frontend
+        docker push $IMAGE_FRONTEND
 
-    # Final steps: Triggering the actual deployment on Cloud Run.
-    - name: 'Step 7: Deploy Backend to Cloud Run'
-      uses: 'google-github-actions/deploy-cloudrun@v2'
-      with:
-        service: '${{ env.BACKEND_SERVICE }}'
-        image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/containers/backend:${{ github.sha }}'
-        region: '${{ env.REGION }}'
-        # Permits public access to the service. 
-        # In a real enterprise app, you might omit this for internal backends.
-        flags: '--allow-unauthenticated'
+    # Deploy backend to Cloud Run
+    - name: "Step 7: Deploy Backend to Cloud Run"
+      run: |
+        gcloud run deploy ${BACKEND_SERVICE} \
+          --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/backend:${{ github.sha }} \
+          --region=${REGION} \
+          --platform=managed \
+          --allow-unauthenticated
 
-    - name: 'Step 8: Deploy Frontend to Cloud Run'
-      uses: 'google-github-actions/deploy-cloudrun@v2'
-      with:
-        service: '${{ env.FRONTEND_SERVICE }}'
-        image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/containers/frontend:${{ github.sha }}'
-        region: '${{ env.REGION }}'
-        flags: '--allow-unauthenticated'
+    # Deploy frontend to Cloud Run
+    - name: "Step 8: Deploy Frontend to Cloud Run"
+      run: |
+        gcloud run deploy ${FRONTEND_SERVICE} \
+          --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/containers/frontend:${{ github.sha }} \
+          --region=${REGION} \
+          --platform=managed \
+          --allow-unauthenticated
+
