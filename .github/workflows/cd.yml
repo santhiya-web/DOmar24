@@ -7,15 +7,16 @@ on:
     branches: [ "main" ]
 
 # 'env' makes these variables available to all steps.
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: ${{ secrets.REGION }}            # Example: us-central1
-  FRONTEND_SERVICE: frontend-app           # Your Cloud Run frontend service name
-  BACKEND_SERVICE: backend-api             # Your Cloud Run backend service name
+
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: ${{ secrets.REGION }}            # Example: us-central1
+      FRONTEND_SERVICE: frontend-app           # Your Cloud Run frontend service name
+      BACKEND_SERVICE: backend-api             # Your Cloud Run backend service name
 
     steps:
     - name: "Step 1: Checkout Repository"
