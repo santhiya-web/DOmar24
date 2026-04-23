@@ -98,3 +98,5 @@ Refer to [SECRETS.md](./SECRETS.md) for the exact `gcloud` commands and full set
 - **Workload Identity Federation**: Secure, keyless authentication between GitHub Actions and GCP.
 - **Multi-stage Dockerfiles**: Optimized for speed and security.
 - **CORS Configuration**: The backend is configured to safely allow requests from the frontend origin.
+update
+update
